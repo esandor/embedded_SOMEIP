@@ -1,0 +1,23 @@
+Scalable service-Oriented MiddlewarE over IP - Service Discovery modul
+    Official specification from AUTOSAR: https://www.autosar.org/fileadmin/standards/R22-11/FO/AUTOSAR_PRS_SOMEIPServiceDiscoveryProtocol.pdf
+
+SOME/IP-SD overview:
+    The main tasks of the Service Discovery Protocol are communicating the availability of functional entities
+    called services in the in-vehicle communication as well as controlling the send behavior of event messages.
+    This allows sending only event messages to receivers requiring them (Publish/Subscribe).
+
+    SOME/IP-SD is used to:
+        - Locate service instances
+        - Detect if service instances are running
+        - Implement the Publish/Subscribe handling
+
+    Important:
+        - SOME/IP-SD depends on SOME/IP.
+          SOME/IP itself supports both TCP and UDP communications but SOME/IP SD is constraint to use SOME/IP only over UDP.
+
+    There are no dependencides to AUTOSAR SW modules.
+
+Note:
+    The implementation is experimental and may deviate from the official specification.
+    It is provided “as is,” without warranties.
+    Validate against your target ECU/OEM profiles and perform comprehensive testing prior to use.

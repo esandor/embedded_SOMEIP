@@ -1,0 +1,12 @@
+Scalable service-Oriented MiddlewarE over IP modul
+    Official specification from AUTOSAR: https://www.autosar.org/fileadmin/standards/R22-11/FO/AUTOSAR_PRS_SOMEIPProtocol.pdf
+
+SOME/IP overview:
+    SOME/IP is an automotive/embedded communication protocol which supports remote procedure calls, event notifications and the underlying serialization/wire format.
+    SOME/IP shall be used for inter-ECU Client/Server Serialization.
+    There are no dependencides to AUTOSAR SWS modules.
+
+Note:
+    The implementation is experimental and may deviate from the official specification.
+    It is provided “as is,” without warranties.
+    Validate against your target ECU/OEM profiles and perform comprehensive testing prior to use.
