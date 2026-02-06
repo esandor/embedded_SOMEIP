@@ -6,7 +6,7 @@
  * @file    SI_header.h
  * @author  Erdei Sándor (sandorerdei21@gmail.com)
  * @date
- * @brief   "Interface for handling SOME/IP header, provides set/check functions for easy handling."
+ * @brief   "Interface for handling SOME/IP header, provides set/check functions"
  * 
  */
 
@@ -31,27 +31,23 @@
 /* **************************************************** */
 
 /**
- * 32 bit
- * First field of header layout.
- * Contains Service_ID and Method_ID.
- * @note Note: The assignment of the Message ID is up to the user / system designer. However,
- * the Message ID is assumed be unique for the whole system (i.e. the vehicle).
+ * 32 bit, first field of header. Contains Service_ID and Method_ID.
+ * @note The assignment of the Message ID is up to the user / system designer.
+ * However, the Message ID is assumed be unique for the whole system (i.e. the vehicle).
  */
 struct SI_MessageID
 {
-    uint16 serviceID; // MSB, For distinguishing services.
-    uint16 methodID_or_eventID;  // LSB, For distinguishing service elements (namely methods and/or events). Method range: 0x0000 .. 0x7FFF (first bit of Method-ID is 0). Event range:  0x8000 .. 0xFFFF (first bit of Method-ID is 1)
+    uint16 serviceID;            // MSB, For distinguishing services.
+    uint16 methodID_or_eventID;  // LSB, For distinguishing service elements (methods/events). Method range: 0x0000 .. 0x7FFF. Event range:  0x8000 .. 0xFFFF.
 };
 
 /**
- * 32 bits
- * Allows an endpoint to differentiate multiple parallel uses of the same service.
- * Contains Client_ID and Session_ID.
- * @note Unique for a request-response pair to differentiate between multiple calls of the same service.
+ * 32 bits, allows an endpoint to differentiate multiple parallel uses of the same service. Contains Client_ID and Session_ID.
+ * @note Unique for a request-response pair.
  */
 struct SI_RequestID
 {
-	uint16 clientID;  // MSB, Unique identifier for the calling client inside the ECU. The Client ID allows an ECU to differentiate calls from multiple clients to the same method.
+	uint16 clientID;  // MSB, Unique identifier for the calling client inside the ECU. Allows an ECU to differentiate calls from multiple clients to the same method.
 	uint16 sessionID; // LSB, Unique identifier that allows to distinguish sequential messages or requests originating from the same sender from each other.
 };
 
@@ -92,7 +88,7 @@ enum SI_ReturnCode_t
 struct SI_Header
 {
     struct SI_MessageID message_id;     // [service_id:16 | method_or_event_id:16]
-    uint32 length;                      // bytes after this field
+    uint32 length;                      // number of bytes after this field
     struct SI_RequestID request_id;     // [client_id:16 | session_id:16]
     uint8 protocol_version;
     uint8 interface_version;
@@ -104,20 +100,20 @@ struct SI_Header
 /*               Function declarations                  */
 /* **************************************************** */
 
-boolean SI_HEADER_check_messageID(struct SI_MessageID);
-boolean SI_HEADER_set_messageID(struct SI_Header*, struct SI_MessageID );
-boolean SI_HEADER_check_requestID(struct SI_RequestID);
-boolean SI_HEADER_set_requestID(struct SI_Header*, struct SI_RequestID);
-boolean SI_HEADER_check_protVer(uint8);
-boolean SI_HEADER_set_protVer(struct SI_Header* h, uint8 version);
+boolean SI_HEADER_check_messageID(struct SI_MessageID id);
+boolean SI_HEADER_set_messageID(struct SI_Header* header, struct SI_MessageID id);
+boolean SI_HEADER_check_requestID(struct SI_RequestID id);
+boolean SI_HEADER_set_requestID(struct SI_Header* header, struct SI_RequestID id);
+boolean SI_HEADER_check_protVer(uint8 version);
+boolean SI_HEADER_set_protVer(struct SI_Header* header, uint8 version);
 boolean SI_HEADER_check_intVer(uint8 version);
-boolean SI_HEADER_set_intVer(struct SI_Header* h, uint8 version);
-boolean SI_HEADER_check_retCode(const struct SI_Header*, enum SI_ReturnCode_t);
-boolean SI_HEADER_set_retCode(struct SI_Header*, enum SI_ReturnCode_t);
-boolean SI_HEADER_check_messageType(enum SI_MessageType_t);
-boolean SI_HEADER_set_messageType(struct SI_Header*, enum SI_MessageType_t);
-uint16  SI_HEADER_increment_sessionID(uint16);
-boolean SI_HEADER_validate(const struct SI_Header*);
+boolean SI_HEADER_set_intVer(struct SI_Header* header, uint8 version);
+boolean SI_HEADER_check_retCode(const struct SI_Header* header, enum SI_ReturnCode_t code);
+boolean SI_HEADER_set_retCode(struct SI_Header* header, enum SI_ReturnCode_t code);
+boolean SI_HEADER_check_messageType(enum SI_MessageType_t message_type);
+boolean SI_HEADER_set_messageType(struct SI_Header* header, enum SI_MessageType_t message_type);
+uint16 SI_HEADER_increment_sessionID(uint16 prev_session_id);
+boolean SI_HEADER_validate(const struct SI_Header* header);
 
 /* **************************************************** */
 /*               Function definitions                   */

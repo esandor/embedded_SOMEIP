@@ -16,6 +16,7 @@
 #include "SI_header.h"
 #include "SI_message.h"
 #include "SI_wire.h"
+#include "ERH.h"
 
 /* **************************************************** */
 /*                       Defines                        */
@@ -33,28 +34,36 @@
 /*                Local type definitions                */
 /* **************************************************** */
 
+enum SI_PARS_ErrType_t
+{
+    SI_PARS_ErrType_length_mismatch = 0u
+};
+
 /* **************************************************** */
 /*             Local function declarations              */
 /* **************************************************** */
+
+static void SI_PARSER_report_error(enum SI_PARS_ErrType_t type, uint32 udp_payload_length, uint32 header_length_field);
 
 /* **************************************************** */
 /*             Global function definitions              */
 /* **************************************************** */
 
 /**
- * Checks packet length according to UDP layer and SOME/IP packet header.
+ * Checks datagram length too
  * 
  * @param udp_payload: raw byte array from UDP layer
  * @param udp_payload_length: total length of udp_payload array
  * @param out_header: parsed SOME/IP header
- * @param out_payload: pointer to SOME/IP payload 
- * 
- * @returns TRUE if parse was successfull
+ * @param out_payload: pointer to SOME/IP payload
  */
-boolean SI_PARSER_parse_datagram(const uint8* udp_payload, uint32 udp_payload_length, struct SI_Header* out_header, struct SI_Payload* out_payload)
+boolean SI_PARSER_parse_datagram(const uint8* udp_payload, uint32 udp_payload_length,
+                                 struct SI_Header* out_header, struct SI_Payload* out_payload)
 {
-    if ((NULLPTR == udp_payload) || (NULLPTR == out_header) || (NULLPTR == out_payload) ||
-        (SI_CONST_HEADER_LENGTH > udp_payload_length))
+    const boolean nullptr_params = ((NULLPTR == udp_payload) || (NULLPTR == out_header) || (NULLPTR == out_payload));
+    const boolean datagram_too_small = (SI_CONST_HEADER_LENGTH > udp_payload_length);
+
+    if (nullptr_params || datagram_too_small)
     {
         return FALSE;
     }
@@ -63,6 +72,7 @@ boolean SI_PARSER_parse_datagram(const uint8* udp_payload, uint32 udp_payload_le
 
     if ((out_header->length + SI_CONST_HEADER_PREFIX_LENGTH) != udp_payload_length)
     {
+        SI_PARSER_report_error(SI_PARS_ErrType_length_mismatch, udp_payload_length, out_header->length);
         return FALSE;
     }
 
@@ -75,5 +85,10 @@ boolean SI_PARSER_parse_datagram(const uint8* udp_payload, uint32 udp_payload_le
 /* **************************************************** */
 /*             Local function definitions               */
 /* **************************************************** */
+
+static void SI_PARSER_report_error(enum SI_PARS_ErrType_t type, uint32 udp_payload_length, uint32 header_length_field)
+{
+    ERH_report_error(ERH_SI_PARSER_ERROR, type, udp_payload_length, header_length_field, 0u, 0u, 0u);
+}
 
 /* END OF SI_PARSER.C FILE */

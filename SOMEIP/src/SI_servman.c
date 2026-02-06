@@ -1,15 +1,15 @@
 /**
- * @file    SI_service_manager.c
+ * @file    SI_servman.c
  * @author  Erdei Sándor (sandorerdei21@gmail.com)
  * @date
- * @brief   "Implements SI_service_manager.h"
+ * @brief   "Implements SI_servman.h"
  */
 
 /* **************************************************** */
 /*                      Includes                        */
 /* **************************************************** */
 
-#include "SI_service_manager.h"
+#include "SI_servman.h"
 
 #include "SI_types.h"
 #include "SI_header.h"
@@ -24,14 +24,14 @@
 /*               Static global variables                */
 /* **************************************************** */
 
-/* **************************************************** */
-/*                True global variables                 */
-/* **************************************************** */
-
 static struct SI_local_Service g_services[SI_CFG_MAX_SERVICES];
 static uint16 g_service_count = 0u;
 static struct SI_MethodEntry g_methods[SI_CFG_MAX_METHODS];
 static uint16 g_method_count = 0u;
+
+/* **************************************************** */
+/*                True global variables                 */
+/* **************************************************** */
 
 /* **************************************************** */
 /*                Local type definitions                */
@@ -121,4 +121,4 @@ struct SI_local_Service* SI_SERVMAN_find_service(uint16 service_id)
 /*             Local function definitions               */
 /* **************************************************** */
 
-/* END OF SI_PROVIDER.C FILE */
+/* END OF SI_SERVMAN.C FILE */

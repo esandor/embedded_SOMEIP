@@ -11,9 +11,6 @@
 
 #include "SI_header.h"
 
-#include "SI_types.h"
-#include "SI_config.h"
-
 /* **************************************************** */
 /*                       Defines                        */
 /* **************************************************** */
@@ -68,15 +65,10 @@ boolean SI_HEADER_set_messageID(struct SI_Header* header, struct SI_MessageID id
 boolean SI_HEADER_check_requestID(struct SI_RequestID id)
 {
 #if (FALSE == SI_CFG_ENABLE_SESSION_HANDLING)
-    /* In case of FALSE == SI_CFG_ENABLE_SESSION_HANDLING:
-     *      all session ID value has to be zero
-     */
+    // all session ID value has to be zero
     return (0u == id.sessionID);
 #else
-    /*
-     * In case of TRUE == SI_CFG_ENABLE_SESSION_HANDLING:
-     *      all session ID value has to be between 0x0001 and 0xFFFF.
-     */
+    // all session ID value has to be between 0x0001 and 0xFFFF.
     return (1u <= id.sessionID);
 #endif
 }
@@ -140,14 +132,14 @@ boolean SI_HEADER_set_intVer(struct SI_Header* header, uint8 version)
 
 /**
  * Checks Return Code value according to Message Type field.
- * @returns TRUE if protocoll rules are followed.
+ * @returns TRUE if protocol rules are followed.
 */
 boolean SI_HEADER_check_retCode(const struct SI_Header* header, enum SI_ReturnCode_t code)
 {
     // In case of REQUEST, REQ_NO_RETURN and NOTIFY the return code must be OK
     if (((SI_MessageType_REQUEST == header->message_type) ||
-            (SI_MessageType_REQUEST_NO_RETURN == header->message_type) ||
-            (SI_MessageType_NOTIFICATION == header->message_type))
+         (SI_MessageType_REQUEST_NO_RETURN == header->message_type) ||
+         (SI_MessageType_NOTIFICATION == header->message_type))
          && (SI_ReturnCode_OK == code))
     {
         return TRUE;
@@ -239,7 +231,7 @@ boolean SI_HEADER_validate(const struct SI_Header* header)
             SI_HEADER_check_requestID(header->request_id) &&
             SI_HEADER_check_protVer(header->protocol_version) &&
             SI_HEADER_check_messageType(header->message_type) &&
-            SI_HEADER_check_retCode(header, header->return_code));  // retCode check must be after messageType check
+            SI_HEADER_check_retCode(header, header->return_code));  // _check_retCode() must be after _check_messageType()
 }
 
 /* **************************************************** */

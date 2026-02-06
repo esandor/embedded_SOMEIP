@@ -7,7 +7,7 @@
  * @author  Erdei Sándor (sandorerdei21@gmail.com)
  * @date
  * @brief   "Main modul of SOMEIP.
- *           Provides SOMEIP Rx handler function."
+ *           Provides SOMEIP Rx handler function called from UDP layer."
  * 
  */
 
@@ -24,7 +24,7 @@
 #include "SI_dispatcher.h"
 #include "SI_parser.h"
 #include "SI_header.h"
-#include "SI_service_manager.h"
+#include "SI_servman.h"
 #include "SI_message.h"
 
 /* **************************************************** */

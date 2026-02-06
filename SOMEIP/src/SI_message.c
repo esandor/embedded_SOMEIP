@@ -18,9 +18,12 @@
 #include "SI_config.h"
 #include "SI_header.h"
 #include "SI_wire.h"
+#include "ERH.h"
 
-_Static_assert(SI_CFG_MSG_TXPOOL_BLOCK_SIZE >= SI_CONST_HEADER_LENGTH, "FATAL ERROR: Configured SOME/IP message pool block size is below the minimum length!");
-_Static_assert(SI_CFG_MSG_TXPOOL_BLOCK_SIZE <= SI_CONST_UDP_MTU_LENGTH, "FATAL ERROR: Configured SOME/IP message pool block size is bigger than UDP MTL size and SW implementation does not support datagram segmentation!");
+static_assert(SI_CFG_MSG_TXPOOL_BLOCK_SIZE >= SI_CONST_HEADER_LENGTH, "FATAL ERROR: Configured SOME/IP message pool block size is below the minimum length!");
+#if (FALSE == SI_CFG_TRANSMISSION_PROTOCOL_EXISTS)
+static_assert(SI_CFG_MSG_TXPOOL_BLOCK_SIZE <= SI_CONST_UDP_MTU_LENGTH, "FATAL ERROR: Configured SOME/IP message pool block size is bigger than UDP MTL size and SW implementation does not support datagram segmentation!");
+#endif
 
 /* **************************************************** */
 /*                       Defines                        */
@@ -30,50 +33,65 @@ _Static_assert(SI_CFG_MSG_TXPOOL_BLOCK_SIZE <= SI_CONST_UDP_MTU_LENGTH, "FATAL E
 /*               Static global variables                */
 /* **************************************************** */
 
+static struct SI_MESSAGE_tx_pool g_tx_message_pool;
+
 /* **************************************************** */
 /*                True global variables                 */
 /* **************************************************** */
-
-struct SI_MESSAGE_tx_pool tx_message_pool;
 
 /* **************************************************** */
 /*                Local type definitions                */
 /* **************************************************** */
 
+enum SI_MSG_ErrType_t
+{
+    SI_MSG_ErrType_length_mismatch = 0u,
+    SI_MSG_ErrType_tx_pool_overflow = 1u
+};
+
 /* **************************************************** */
 /*             Local function declarations              */
 /* **************************************************** */
 
-static void SI_MESSAGE_provide_length(const struct SI_Header* header, uint32* out_len);
-static uint16 SI_MESSAGE_allocate(void);
+static void SI_MESSAGE_get_length(const struct SI_Header* header, uint32* out_len);
+static uint32 SI_MESSAGE_allocate(void);
+static void SI_MESSAGE_report_error(enum SI_MSG_ErrType_t type, struct SI_Header* header, uint32 cursor);
 
 /* **************************************************** */
 /*             Global function definitions              */
 /* **************************************************** */
 
-boolean SI_MESSAGE_init(struct SI_MessageBuilder* message)
+/**
+ * @param out_message: Tx buffer will be allocated for this builder object
+ */
+boolean SI_MESSAGE_init(struct SI_MessageBuilder* out_message)
 {
-    uint16 index = SI_CFG_MSG_TXPOOL_ELEMENT_NUM;
+    uint32 index = SI_CFG_MSG_TXPOOL_ELEMENT_NUM;
     
-    if (NULLPTR == message)
+    if (NULLPTR == out_message)
     {
         return FALSE;
     }
 
     index = SI_MESSAGE_allocate();
-
     if (SI_CFG_MSG_TXPOOL_ELEMENT_NUM == index)
     {
+        SI_MESSAGE_report_error(SI_MSG_ErrType_tx_pool_overflow, NULLPTR, 0u);
         return FALSE;
     }
 
-    message->cursor = SI_CONST_HEADER_LENGTH;                //place cursor to the start of payload
-    message->data = tx_message_pool.pool[index].buffer;
-    message->cap = SI_CFG_MSG_TXPOOL_BLOCK_SIZE;
-    message->length = 0u;
+    out_message->cursor = SI_CONST_HEADER_LENGTH;   //place cursor to the start of payload
+    out_message->data = g_tx_message_pool.pool[index].buffer;
+    out_message->cap = SI_CFG_MSG_TXPOOL_BLOCK_SIZE;
+    out_message->length = 0u;
     return TRUE;
 }
 
+/**
+ * @param message: builder that's payload need to be filled
+ * @param payload: pointer to array containing the data
+ * @param payload_length: length of payload array in bytes
+ */
 boolean SI_MESSAGE_put(struct SI_MessageBuilder* message, const uint8* payload, uint32 payload_length)
 {
     const boolean invalid_inputs = ((NULLPTR == message) ||
@@ -97,6 +115,8 @@ boolean SI_MESSAGE_put(struct SI_MessageBuilder* message, const uint8* payload, 
 }
 
 /**
+ * @param message: builder, containing the payload already
+ * @param header: header need to add to message
  * @param out_len (optional): provides caller with total message length value. If not needed give NULLPTR.
  */
 boolean SI_MESSAGE_finalize(struct SI_MessageBuilder* message, struct SI_Header* header, uint32* out_len)
@@ -104,9 +124,9 @@ boolean SI_MESSAGE_finalize(struct SI_MessageBuilder* message, struct SI_Header*
     const boolean invalid_inputs = ((NULLPTR == message) || (NULLPTR == header));
     const boolean invalid_cursor = ((SI_CONST_HEADER_LENGTH > message->cursor) || (message->cursor > message->cap));
     const boolean invalid_cap = (SI_CONST_HEADER_LENGTH > message->cap);
-    const boolean giant_packet = (SI_CONST_UDP_MTU_LENGTH < message->cursor);
+    const boolean packet_too_large = (SI_CONST_UDP_MTU_LENGTH <= message->cursor);
 
-    if (invalid_inputs || invalid_cursor || invalid_cap || giant_packet)
+    if (invalid_inputs || invalid_cursor || invalid_cap || packet_too_large)
     {
         return FALSE;
     }
@@ -121,11 +141,11 @@ boolean SI_MESSAGE_finalize(struct SI_MessageBuilder* message, struct SI_Header*
         // cursor should be at the end of message buffer, should be equal to length
         if (message->cursor != message->length)
         {
-            // FATAL ERROR: values are different
+            SI_MESSAGE_report_error(SI_MSG_ErrType_length_mismatch, header, message->cursor);
             return FALSE;
         }
 
-        SI_MESSAGE_provide_length(header, out_len);
+        SI_MESSAGE_get_length(header, out_len);
         return TRUE;
     }
     return FALSE;
@@ -135,16 +155,16 @@ boolean SI_MESSAGE_invalidate(struct SI_MessageBuilder* message)
 {
     uint16 i = 0u;
 
-    if (NULLPTR == message || NULLPTR == message->data)
+    if ((NULLPTR == message) || (NULLPTR == message->data))
     {
         return FALSE;
     }
 
     for (i = 0u; i < SI_CFG_MSG_TXPOOL_ELEMENT_NUM; i++)
     {
-        if (message->data == tx_message_pool.pool[i].buffer)
+        if (message->data == g_tx_message_pool.pool[i].buffer)
         {
-            tx_message_pool.pool[i].used = FALSE;
+            g_tx_message_pool.pool[i].used = FALSE;
             message->data = NULLPTR;
             message->cursor = 0u;
             message->cap = 0u;
@@ -162,30 +182,48 @@ boolean SI_MESSAGE_invalidate(struct SI_MessageBuilder* message)
 /**
  * @returns Pool element index if successfull, SI_CFG_MSG_TXPOOL_ELEMENT_NUM if failed. 
  */
-static uint16 SI_MESSAGE_allocate(void)
+static uint32 SI_MESSAGE_allocate(void)
 {
-    uint16 i = 0u;
+    uint32 i = 0u;
 
     for (i = 0u; i < SI_CFG_MSG_TXPOOL_ELEMENT_NUM; i++)
     {
-        if (FALSE == tx_message_pool.pool[i].used)
+        if (FALSE == g_tx_message_pool.pool[i].used)
         {
-            tx_message_pool.pool[i].used = TRUE;
+            g_tx_message_pool.pool[i].used = TRUE;
             break;
         }
     }
     return i;
 }
 
-static void SI_MESSAGE_provide_length(const struct SI_Header* header, uint32* out_len)
+static void SI_MESSAGE_get_length(const struct SI_Header* header, uint32* out_len)
 {
+    if (NULLPTR == header)
+    {
+        return;
+    }
+
     if (NULLPTR != out_len)
     {
         *out_len = header->length + SI_CONST_HEADER_PREFIX_LENGTH;
     }
+}
+
+static void SI_MESSAGE_report_error(enum SI_MSG_ErrType_t type, struct SI_Header* header, uint32 cursor)
+{
+    if (NULLPTR != header)
+    {
+    ERH_report_error(ERH_SI_MESSAGE_ERROR,
+                    type,
+                    ((header->message_id.serviceID << 16u) | (header->message_id.methodID_or_eventID)),
+                    ((header->request_id.clientID << 16u) | (header->request_id.sessionID)),
+                    ((header->message_type << 24u) | (header->return_code << 16u) | (header->protocol_version << 8u) | (header->interface_version)),
+                    (header->length), cursor);
+    }
     else
     {
-        (void)out_len;
+        ERH_report_error(ERH_SI_MESSAGE_ERROR, type, 0u, 0u, 0u, 0u, 0u);
     }
 }
 

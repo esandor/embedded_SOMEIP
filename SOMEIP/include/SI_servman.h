@@ -1,9 +1,9 @@
 // Include guard starts here
-#ifndef SI_SERVICE_MANAGER_H_
-#define SI_SERVICE_MANAGER_H_
+#ifndef SI_SERVMAN_H_
+#define SI_SERVMAN_H_
 
 /**
- * @file    SI_service_manager.h
+ * @file    SI_servman.h
  * @author  Erdei Sándor (sandorerdei21@gmail.com)
  * @date
  * @brief   "Interface for SOME/IP service manager.
@@ -33,7 +33,6 @@ struct SI_MessageContext
 {
     struct SI_Header header;
     struct SI_Payload payload; // ptr+len
-    void* cookie; // transport layer cookie
 };
 
 /**
@@ -69,4 +68,4 @@ boolean SI_SERVMAN_add_method(struct SI_local_Service* service, const struct SI_
 struct SI_local_Service* SI_SERVMAN_find_service(uint16 service_id);
 
 // Include guard stops here
-#endif // SI_SERVICE_MANAGER_H_
+#endif // SI_SERVMAN_H_

@@ -12,7 +12,7 @@
 #include "SI_dispatcher.h"
 
 #include "SI_types.h"
-#include "SI_service_manager.h"
+#include "SI_servman.h"
 #include "SI_header.h"
 #include "ERH.h"
 
@@ -32,32 +32,20 @@
 /*                Local type definitions                */
 /* **************************************************** */
 
+enum SI_DISP_ErrType_t
+{
+    SI_DISP_ErrType_sintactic_validation = 0u,
+    SI_DISP_ErrType_semantic_interpretation = 1u,
+    SI_DISP_ErrType_silence_faliure = 2u
+};
+
 /* **************************************************** */
 /*             Local function declarations              */
 /* **************************************************** */
 
-static boolean SI_DISPATCHER_header_sintactic_validation( const struct SI_MessageContext* request,
-                                                        struct SI_Header* response_header,
-                                                        boolean* need_call_handler,
-                                                        boolean* need_send_response,
-                                                        boolean* needs_resp);
-boolean SI_DISPATCHER_request_header_semantic_validation(const struct SI_MessageContext* request,
-                                                         struct SI_Header* response_header,
-                                                         boolean* need_call_handler,
-                                                         boolean* need_send_response,
-                                                         boolean* response_header_prepared);
-boolean SI_DISPATCHER_get_service(  const struct SI_MessageContext* request,
-                                    struct SI_Header* response_header,
-                                    boolean* need_call_handler,
-                                    boolean* need_send_response,
-                                    boolean* response_header_prepared,
-                                    struct SI_local_Service** service);
-static boolean SI_DISPATCHER_construct_header(  const struct SI_MessageContext* req,
-                                                struct SI_Header* resp_header,
-                                                enum SI_MessageType_t type,
-                                                enum SI_ReturnCode_t code);
-static boolean SI_DISPATCHER_expect_response(enum SI_MessageType_t message_type, boolean* needs_resp);
-static void SI_DISPATCHER_report_error();
+boolean SI_DISPATCHER_sintactic_validation(const struct SI_MessageContext* request, struct SI_DISPATCHER_status* status);
+boolean SI_DISPATCHER_semantic_interpretation(const struct SI_MessageContext* request, struct SI_DISPATCHER_status* status);
+static void SI_DISPATCHER_report_error(enum SI_DISP_ErrType_t type, const struct SI_MessageContext* request);
 
 /* **************************************************** */
 /*             Global function definitions              */
@@ -73,69 +61,37 @@ static void SI_DISPATCHER_report_error();
  * 
  * @returns TRUE if function execution was done on happy-path only
  */
-boolean SI_DISPATCHER_dispatch(const struct SI_MessageContext* in_request,
-                               struct SI_Header* inout_response_header,
-                               boolean* out_need_call_handler,
-                               boolean* out_need_send_response,
-                               boolean* out_response_header_prepared,
-                               struct SI_local_Service** out_service)
+boolean SI_DISPATCHER_dispatch(const struct SI_MessageContext* in_request, struct SI_DISPATCHER_status* status)
 {
-    // ---- 0)
-    if ((NULLPTR == in_request) || (NULLPTR == inout_response_header) ||
-        (NULLPTR == out_need_call_handler) || (NULLPTR == out_need_send_response))
+    // ---- 0) Input validation
+    if ((NULLPTR == in_request) || (NULLPTR == status))
     {
         return FALSE;
     }
 
-    *out_need_call_handler  = FALSE;
-    *out_need_send_response = FALSE;
-    *out_response_header_prepared = FALSE;
-    *out_service = NULLPTR;
+    status->call_handler  = FALSE;
+    status->send_response = FALSE;
+    status->error = FALSE;
+    status->error_message_type = SI_MessageType_RESPONSE;
+    status->error_return_code = SI_ReturnCode_OK;
 
-    // ---- 1) Sintactic validation
-    if (FALSE == SI_DISPATCHER_header_sintactic_validation( in_request,
-                                                            inout_response_header,
-                                                            out_need_call_handler,
-                                                            out_need_send_response,
-                                                            out_response_header_prepared))
+    // ---- 1) Request sintactic validation
+    if (FALSE == SI_DISPATCHER_sintactic_validation(in_request, status))
     {
-        SI_DISPATCHER_report_error(SI_DISPATCHER_ErrType_REQ_HDR_SINTACT_VAL, in_request);
+        SI_DISPATCHER_report_error(SI_DISP_ErrType_sintactic_validation, in_request);
         return FALSE;
     }
 
-    // ---- 2) Semantic validation
-    if (FALSE == SI_DISPATCHER_request_header_semantic_validation(  in_request,
-                                                                    inout_response_header,
-                                                                    out_need_call_handler,
-                                                                    out_need_send_response,
-                                                                    out_response_header_prepared))
+    // ---- 2) request semantic validation and action determination
+    if (FALSE == SI_DISPATCHER_semantic_interpretation(in_request, status))
     {
-        SI_DISPATCHER_report_error(SI_DISPATCHER_ErrType_REQ_HDR_SEMANT_VAL,  in_request);
+        SI_DISPATCHER_report_error(SI_DISP_ErrType_semantic_interpretation, in_request);
         return FALSE;
     }
 
-    if ((TRUE == *out_response_header_prepared) && (FALSE == *out_need_call_handler))
+    if ((TRUE == status->error) && (FALSE == status->send_response))
     {
-        SI_DISPATCHER_report_error(SI_DISPATCHER_ErrType_REQ_HDR_VAL_FAIL_WO_RESP, in_request);
-        return FALSE;
-    }
-
-    // ---- 3) Decision about sending response
-    (void)SI_DISPATCHER_expect_response(in_request->header.message_type, out_need_send_response);
-
-    if (FALSE == *out_need_send_response)
-    {
-        return TRUE;
-    }
-
-    // ---- 4) Service lookup
-    if(FALSE == SI_DISPATCHER_get_service(  in_request,
-                                            inout_response_header,
-                                            out_need_call_handler,
-                                            out_need_send_response,
-                                            out_response_header_prepared,
-                                            out_service))
-    {
+        SI_DISPATCHER_report_error(SI_DISP_ErrType_silence_faliure, in_request);
         return FALSE;
     }
 
@@ -146,217 +102,90 @@ boolean SI_DISPATCHER_dispatch(const struct SI_MessageContext* in_request,
 /*             Local function definitions               */
 /* **************************************************** */
 
-/**
- * @returns TRUE if dispatcher operation is possible
- */
-static boolean SI_DISPATCHER_header_sintactic_validation(   const struct SI_MessageContext* request,
-                                                            struct SI_Header* response_header,
-                                                            boolean* need_call_handler,
-                                                            boolean* need_send_response,
-                                                            boolean* response_header_prepared)
+boolean SI_DISPATCHER_sintactic_validation(const struct SI_MessageContext* request, struct SI_DISPATCHER_status* status)
 {
-    if ((TRUE == SI_HEADER_validate(&(request->header))) || 
-        (FALSE == SI_DISPATCHER_expect_response(request->header.message_type, need_send_response)))
+    if ((NULLPTR == request) || (NULLPTR == status))
     {
-        // request header is valid
-        return TRUE;
+        return FALSE;
     }
 
-    if (TRUE == *need_send_response)
+    if (FALSE == SI_HEADER_validate(&(request->header)))
     {
-        (void)SI_DISPATCHER_construct_header(request, response_header, SI_MessageType_ERROR, SI_ReturnCode_MALFORMED_MESSAGE);
-        *response_header_prepared = TRUE;
+        return FALSE;
     }
 
-    // dispatcher operation can continue with prepared response header
     return TRUE;
 }
 
-/**
- * @returns TRUE if dispatcher operation is possible
- */
-boolean SI_DISPATCHER_request_header_semantic_validation(const struct SI_MessageContext* request,
-                                                         struct SI_Header* response_header,
-                                                         boolean* need_call_handler,
-                                                         boolean* need_send_response,
-                                                         boolean* response_header_prepared)
+boolean SI_DISPATCHER_semantic_interpretation(const struct SI_MessageContext* request, struct SI_DISPATCHER_status* status)
 {
     const boolean is_method = SI_HEADER_is_method(request->header.message_id.methodID_or_eventID);
     const boolean is_event  = SI_HEADER_is_event (request->header.message_id.methodID_or_eventID);
+    boolean retval = TRUE;
 
     switch (request->header.message_type)
     {
     case SI_MessageType_REQUEST:
+    {
+        status->send_response = TRUE;
+
+        if (TRUE == is_method)
+        {
+            status->call_handler = TRUE;
+        }
+        else
+        {
+            status->error = TRUE;
+            status->error_message_type = SI_MessageType_ERROR;
+            status->error_return_code = SI_ReturnCode_WRONG_MESSAGE_TYPE;
+        }
+        break;
+    }
+    case SI_MessageType_ERROR:
+        /* FALL TROUGH */
+    case SI_MessageType_RESPONSE:
+        /* FALL TROUGH */
     case SI_MessageType_REQUEST_NO_RETURN:
     {
         if (TRUE == is_method)
         {
-            // semantic check passed
-            *need_call_handler = TRUE;
-            return TRUE;
+            status->call_handler = TRUE;
         }
-
-        if (FALSE == SI_DISPATCHER_expect_response(request->header.message_type, need_send_response))
+        else
         {
-            // message type is corrupted, cant do anything
-            return FALSE;
+            status->error = TRUE;
         }
-
-        if ((TRUE == *need_send_response) && (FALSE == *response_header_prepared))
-        {
-            (void)SI_DISPATCHER_construct_header(request, response_header, SI_MessageType_ERROR, SI_ReturnCode_WRONG_MESSAGE_TYPE);
-            *response_header_prepared = TRUE;
-        }
-        return TRUE;
+        break;
     }
     case SI_MessageType_NOTIFICATION:
     {
         if (TRUE == is_event)
         {
-            // semantic check passed
-            *need_call_handler = TRUE;
-            return TRUE;
+            status->call_handler = TRUE;
         }
-
-        // It is certain that no response message is needed
-        // semantic check failed, cant do anything
-        return FALSE;
+        else
+        {
+            status->error = TRUE;
+        }
+        break;
     }
     default:
     {
-        // fatal error: inreachable code
-        // semantic check failed, cant do anything
-        return FALSE;
+        retval = FALSE;
+        break;
     }
     }
+    return retval;
 }
 
-/**
- * @returns TRUE if dispatcher operation is possible
- */
-boolean SI_DISPATCHER_get_service(  const struct SI_MessageContext* request,
-                                    struct SI_Header* response_header,
-                                    boolean* need_call_handler,
-                                    boolean* need_send_response,
-                                    boolean* response_header_prepared,
-                                    struct SI_local_Service** service)
+static void SI_DISPATCHER_report_error(enum SI_DISP_ErrType_t type, const struct SI_MessageContext* request)
 {
-    *service = SI_SERVMAN_find_service(request->header.message_id.serviceID);
-    
-    if (NULLPTR == *service)
-    {
-        if (FALSE == *need_send_response)
-        {
-            SI_DISPATCHER_report_error(SI_DISPATCHER_ErrType_LOC_SER_NOT_FOUND, request);
-            return FALSE;
-        }
-        else
-        {
-            (void)SI_DISPATCHER_construct_header(request, response_header, SI_MessageType_ERROR, SI_ReturnCode_UNKNOWN_SERVICE);
-            *response_header_prepared = TRUE;
-            return TRUE;
-        }
-    }
-
-    if (request->header.interface_version != (*service)->interface_version)
-    {
-        if (FALSE == *need_send_response)
-        {
-            SI_DISPATCHER_report_error(SI_DISPATCHER_ErrType_LOC_SER_INTVER_NOT_COMPAT, request);
-            return FALSE;
-        }
-        else
-        {
-            (void)SI_DISPATCHER_construct_header(request, response_header, SI_MessageType_ERROR, SI_ReturnCode_WRONG_INTERFACE_VERSION);
-            *response_header_prepared = TRUE;
-            return TRUE;
-        }
-    }
-
-    if ((request->header.message_id.methodID_or_eventID != (*service)->method->method_id) ||
-        (NULLPTR == (*service)->method->handler_func))
-    {
-        if (FALSE == *need_send_response)
-        {
-            SI_DISPATCHER_report_error(SI_DISPATCHER_ErrType_LOC_SER_METID_NOT_COMPAT, request);
-            return FALSE;
-        }
-        else
-        {
-            (void)SI_DISPATCHER_construct_header(request, response_header, SI_MessageType_ERROR, SI_ReturnCode_UNKNOWN_METHOD);
-            *response_header_prepared = TRUE;
-            return TRUE;
-        }
-    }
-
-    // service found without any problem
-    return TRUE;
-}
-
-/**
- * Sets response message header based on request message header.
- * Returns TRUE if requested header format is successfully set.
- * @param req: request message, this function assembles the response message header for that message
- * @param resp_header: the response header that this function assembles
- * @param type: Message Type field of resp_header
- * @param code: Return Code field of resp_header
-*/
-static boolean SI_DISPATCHER_construct_header(const struct SI_MessageContext* req, struct SI_Header* resp_header, enum SI_MessageType_t type, enum SI_ReturnCode_t code)
-{
-    *resp_header = req->header;
-
-    if (TRUE == SI_HEADER_check_messageType(type))
-    {
-        resp_header->message_type = type;
-        if (TRUE == SI_HEADER_set_retCode(resp_header, code))
-        {
-            return TRUE;
-        }
-    }
-
-    // If either check fails, the outcome is always an ERROR type response message
-    resp_header->message_type = SI_MessageType_ERROR;
-    (void)SI_HEADER_set_retCode(resp_header, SI_ReturnCode_NOT_OK);
-    return FALSE;
-
-}
-
-static boolean SI_DISPATCHER_expect_response(enum SI_MessageType_t message_type, boolean* needs_resp)
-{
-    if ((NULLPTR == needs_resp) || (FALSE == SI_HEADER_check_messageType(message_type)))
-    {
-        // Any not specified Message Type will be ignored
-        return FALSE;
-    }
-
-    switch (message_type)
-    {
-        case SI_MessageType_REQUEST:
-        {
-            *needs_resp = TRUE;
-            return TRUE;
-        }
-        case SI_MessageType_REQUEST_NO_RETURN:
-        case SI_MessageType_NOTIFICATION:
-        {
-            *needs_resp = FALSE;
-            return TRUE;
-        }
-        default:
-        {
-            // No need to send response to RESPONSE and ERROR messages
-            *needs_resp = FALSE;
-            return TRUE;
-        }
-    }
-}
-
-static void SI_DISPATCHER_report_error(enum SI_DISPATCHER_ErrType_t type, const struct SI_MessageContext* in_request)
-{
-    ERH_report_error(type, ((in_request->header.message_id.serviceID << 16u) | (in_request->header.message_id.methodID_or_eventID)),
-                            ((in_request->header.request_id.clientID << 16u) | (in_request->header.request_id.sessionID)),
-                            ((in_request->header.message_type << 24u) | (in_request->header.return_code << 16u) | (in_request->header.protocol_version << 8u) | (in_request->header.interface_version)),
-                            (in_request->header.length), 0u, 0u);
+    ERH_report_error(ERH_SI_DISPATCHER_ERROR,
+                    type,
+                    ((request->header.message_id.serviceID << 16u) | (request->header.message_id.methodID_or_eventID)),
+                    ((request->header.request_id.clientID << 16u) | (request->header.request_id.sessionID)),
+                    ((request->header.message_type << 24u) | (request->header.return_code << 16u) | (request->header.protocol_version << 8u) | (request->header.interface_version)),
+                    (request->header.length), 0u);
 }
 
 /* END OF SI_DISPATCHER.C FILE */

@@ -14,7 +14,7 @@
 /* **************************************************** */
 
 #include "SI_types.h"
-#include "SI_service_manager.h"
+#include "SI_servman.h"
 #include "SI_header.h"
 
 /* **************************************************** */
@@ -25,26 +25,20 @@
 /*                  Type definitions                    */
 /* **************************************************** */
 
-enum
+struct SI_DISPATCHER_status
 {
-    SI_DISPATCHER_ErrType_REQ_HDR_SINTACT_VAL,
-    SI_DISPATCHER_ErrType_REQ_HDR_SEMANT_VAL,
-    SI_DISPATCHER_ErrType_REQ_HDR_VAL_FAIL_WO_RESP,
-    SI_DISPATCHER_ErrType_LOC_SER_NOT_FOUND,
-    SI_DISPATCHER_ErrType_LOC_SER_INTVER_NOT_COMPAT,
-    SI_DISPATCHER_ErrType_LOC_SER_METID_NOT_COMPAT
-} SI_DISPATCHER_ErrType_t;
+    boolean call_handler;
+    boolean send_response;
+    boolean error;
+    enum SI_MessageType_t error_message_type;
+    enum SI_ReturnCode_t error_return_code;
+};
 
 /* **************************************************** */
 /*               Function declarations                  */
 /* **************************************************** */
 
-boolean SI_DISPATCHER_dispatch(const struct SI_MessageContext* in_request,
-                               struct SI_Header* inout_response_header,
-                               boolean* out_need_call_handler,
-                               boolean* out_need_send_response,
-                               boolean* out_response_header_prepared,
-                               struct SI_local_Service** out_service);
+boolean SI_DISPATCHER_dispatch(const struct SI_MessageContext* in_request, struct SI_DISPATCHER_status* status);
 
 // Include guard stops here
 #endif // SI_DISPATCHER_H_

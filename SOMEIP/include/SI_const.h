@@ -29,12 +29,12 @@
 /**
  * Total header length in bytes
  */ 
-#define SI_CONST_HEADER_LENGTH                  ((uint32)(16u))
+#define SI_CONST_HEADER_LENGTH                  (16u)
 
 /**
- * Length of the second part of header that IS included into the length field
+ * Length of the second part of header that is included into the length field
  */
-#define SI_CONST_HEADER_TAIL_LENGTH             ((uint32)(8u))
+#define SI_CONST_HEADER_TAIL_LENGTH             (8u)
 
 /**
  * Length of the first part of header that is NOT included into the length field
@@ -46,7 +46,7 @@
  * Eth II MTU is 1500 byte, bigger payloads will be fragmented and sent via multiple UDP messages.
  * In order to keep this application simple, user can not send too big data for one MTU.
  */
-#define SI_CONST_UDP_MTU_LENGTH                 ((uint32)(1400u))
+#define SI_CONST_UDP_MTU_LENGTH                 (1400u)
 
 /* **************************************************** */
 /*                  Type definitions                    */
