@@ -46,6 +46,7 @@ static inline uint8* offset_u8(uint8* p, uint32 offs);
 /**
  * Converts SI_Header struct into byte array to be transmitted on wire.
  * Standard SOME/IP header is 16 bytes long, so out_p return value in parameter list should be at least this size.
+ * [PRS_SOMEIP_00368]
  * 
  * @param in_header: Input header to be transformed
  * @param out_header: Output pointer to the byte array

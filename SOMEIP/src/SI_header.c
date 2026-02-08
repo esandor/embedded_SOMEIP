@@ -206,9 +206,11 @@ boolean SI_HEADER_set_messageType(struct SI_Header* header, enum SI_MessageType_
 uint16 SI_HEADER_increment_sessionID(uint16 prev_session_id)
 {
 #if (FALSE == SI_CFG_ENABLE_SESSION_HANDLING)
+    // [PRS_SOMEIP_00932]
     (void)prev_session_id;
     return 0x00u;
 #else
+    // [PRS_SOMEIP_00934], [PRS_SOMEIP_00521]
     if (0xFFFF == prev_session_id)
     {
         return 0x01u;

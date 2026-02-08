@@ -48,12 +48,12 @@ enum SI_PROC_ErrType_t
     SI_PROC_ErrType_buffering_malfuntion = 4u,
     SI_PROC_ErrType_service_not_needed = 5u,
     SI_PROC_ErrType_local_service_not_found = 6u,
-    SI_PROC_ErrType_local_service_not_compatible = 7u,
-    SI_PROC_ErrType_local_service_methodid_not_compatible = 8u,
-    SI_PROC_ErrType_invalid_handler_retval = 9u,
-    SI_PROC_ErrType_response_finalize_fail = 10u,
-    SI_PROC_ErrType_udp_tx_fail = 11u,
-    SI_PROC_ErrType_response_invalidate_fail = 12u,
+    SI_PROC_ErrType_local_method_not_found = 7u,
+    SI_PROC_ErrType_local_service_not_compatible = 8u,
+    SI_PROC_ErrType_invalid_handler_retval = 10u,
+    SI_PROC_ErrType_response_finalize_fail = 11u,
+    SI_PROC_ErrType_udp_tx_fail = 12u,
+    SI_PROC_ErrType_response_invalidate_fail = 13u,
 };
 
 /* **************************************************** */
@@ -76,9 +76,8 @@ boolean SI_PROCESS_unicast(struct udp_pcb *rx_udp_pcb, struct pbuf *rx_pbuf, con
     boolean response_possible = FALSE;
     boolean error_condition = FALSE;
     boolean interface_mismatch = FALSE;
-    boolean methodID_mismatch = FALSE;
-    boolean method_missing = FALSE;
-    struct SI_local_Service* requested_service = NULLPTR; 
+    struct SI_Service* requested_service = NULLPTR; 
+    struct SI_MethodEntry* requested_method = NULLPTR;
     
     enum SI_ReturnCode_t handler_return_code = SI_ReturnCode_OK;
 
@@ -156,7 +155,6 @@ boolean SI_PROCESS_unicast(struct udp_pcb *rx_udp_pcb, struct pbuf *rx_pbuf, con
 
         // ---- 5) Get requested service
         requested_service = SI_SERVMAN_find_service(request.header.message_id.serviceID);
-        
         if (NULLPTR == requested_service)
         {
             error_condition = TRUE;
@@ -174,23 +172,23 @@ boolean SI_PROCESS_unicast(struct udp_pcb *rx_udp_pcb, struct pbuf *rx_pbuf, con
             SI_PROCESS_report_error(SI_PROC_ErrType_local_service_not_compatible, &request, 0u, 0u, 0u, 0u);
         }
 
-        methodID_mismatch = (request.header.message_id.methodID_or_eventID != requested_service->method->method_id);
-        method_missing = (NULLPTR == requested_service->method->handler_func);
-        if ((methodID_mismatch || method_missing) && (FALSE == error_condition))
+        // ---- 6) Get requested method
+        requested_method = SI_SERVMAN_find_method(requested_service->service_id, request.header.message_id.methodID_or_eventID);
+        if ((NULLPTR == requested_method) && (FALSE == error_condition))
         {
             error_condition = TRUE;
             (void)SI_PROCESS_construct_header(&request, &response_header, SI_MessageType_ERROR, SI_ReturnCode_UNKNOWN_METHOD);
 
-            SI_PROCESS_report_error(SI_PROC_ErrType_local_service_methodid_not_compatible, &request, 0u, 0u, 0u, 0u);
+            SI_PROCESS_report_error(SI_PROC_ErrType_local_service_not_found, &request, 0u, 0u, 0u, 0u);   
         }
 
-        // ---- 6) Call service handler
+        // ---- 7) Call service handler
         if (FALSE == error_condition)
         {
-            handler_return_code = requested_service->method->handler_func(&request, &response, requested_service->user_ctx);
+            handler_return_code = requested_method->handler_func(&request, &response, requested_service->user_ctx);
         }
 
-        // ---- 7) Success -> send response message
+        // ---- 8) Success -> send response message
         if ((TRUE == dispatcher_status.send_response) && (TRUE == response_possible))
         {
             if (FALSE == error_condition)
@@ -291,7 +289,7 @@ static void SI_PROCESS_report_error(enum SI_PROC_ErrType_t type, const void* fie
             ERH_report_error(ERH_SI_PROCESS_ERROR, type, (uint32)(response->data[0u]), (uint32)(response->data[8u]), 0u, 0u, 0u);
             break;
         }
-        case SI_PROC_ErrType_local_service_methodid_not_compatible:
+        case SI_PROC_ErrType_local_method_not_found:
             /* FALL THROUGH */
         case SI_PROC_ErrType_local_service_not_compatible:
             /* FALL THROUGH */

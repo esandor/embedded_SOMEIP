@@ -47,25 +47,31 @@ typedef enum SI_ReturnCode_t (*SI_MethodHandler_fptr)(const struct SI_MessageCon
 
 struct SI_MethodEntry
 {
+    boolean valid;
     uint16 method_id;
     SI_MethodHandler_fptr handler_func;
 };
 
-struct SI_local_Service
+struct SI_Service
 {
+    boolean valid;
     uint16 service_id;
     uint8 interface_version;
-    struct SI_MethodEntry *method;
-    void* user_ctx;                 // app specific context
+    struct SI_MethodEntry method[SI_CFG_MAX_METHODS];
+    uint32 method_counter;
+    void* user_ctx; // app specific context
 };
 
 /* **************************************************** */
 /*               Function declarations                  */
 /* **************************************************** */
 
-boolean SI_SERVMAN_add_service(const struct SI_local_Service* service);
-boolean SI_SERVMAN_add_method(struct SI_local_Service* service, const struct SI_MethodEntry* method);
-struct SI_local_Service* SI_SERVMAN_find_service(uint16 service_id);
+boolean SI_SERVMAN_add_service(const struct SI_Service* service);
+boolean SI_SERVMAN_add_method(struct SI_Service* service, const struct SI_MethodEntry* method);
+struct SI_Service* SI_SERVMAN_find_service(uint16 service_id);
+struct SI_MethodEntry* SI_SERVMAN_find_method(uint16 service_id, uint16 method_id);
+boolean SI_SERVMAN_rmv_service(const struct SI_Service* service);
+boolean SI_SERVMAN_rmv_method(struct SI_Service* service, const struct SI_MethodEntry* method);
 
 // Include guard stops here
 #endif // SI_SERVMAN_H_

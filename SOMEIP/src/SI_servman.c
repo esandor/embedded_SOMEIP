@@ -24,10 +24,8 @@
 /*               Static global variables                */
 /* **************************************************** */
 
-static struct SI_local_Service g_services[SI_CFG_MAX_SERVICES];
-static uint16 g_service_count = 0u;
-static struct SI_MethodEntry g_methods[SI_CFG_MAX_METHODS];
-static uint16 g_method_count = 0u;
+static struct SI_Service local_service_registry[SI_CFG_MAX_SERVICES] = {0u};
+static uint32 local_service_count = 0u;
 
 /* **************************************************** */
 /*                True global variables                 */
@@ -41,84 +39,229 @@ static uint16 g_method_count = 0u;
 /*             Local function declarations              */
 /* **************************************************** */
 
+void SI_SERVMAN_erase_methodlist(struct SI_MethodEntry* method);
+
 /* **************************************************** */
 /*             Global function definitions              */
 /* **************************************************** */
 
-boolean SI_SERVMAN_add_service(const struct SI_local_Service* service)
+boolean SI_SERVMAN_add_service(const struct SI_Service* service)
 {
     uint16 i = 0u;
+    boolean valid_service_element = FALSE;
+    boolean service_id_match = FALSE;
 
-    if ((NULLPTR == service) || (SI_CFG_MAX_SERVICES <= g_service_count))
+    if ((NULLPTR == service) || (SI_CFG_MAX_SERVICES <= local_service_count))
     {
         return FALSE;
     }
 
-    for (i = 0u; i < g_service_count; i++)
+    for (i = 0u; i < SI_CFG_MAX_SERVICES; i++)
     {
-        if (g_services[i].service_id == service->service_id)
+        valid_service_element = (FALSE != local_service_registry[i].valid);
+        service_id_match = (local_service_registry[i].service_id == service->service_id);
+
+        if (valid_service_element && service_id_match)
         {
-            return FALSE;
+            // service already exists
+            return TRUE;
         }
     }
 
-    g_services[g_service_count] = *service;
-    g_service_count += 1u;
-    return TRUE;
-}
-
-boolean SI_SERVMAN_add_method(struct SI_local_Service* service, const struct SI_MethodEntry* method)
-{
-    uint16 i = 0u;
-    struct SI_local_Service* service_to_add_method = NULLPTR;
-
-    if ((NULLPTR == service) || (NULLPTR == method) || (SI_CFG_MAX_METHODS <= g_method_count))
+    for (i = 0u; i < SI_CFG_MAX_SERVICES; i++)
     {
-        return FALSE;
-    }
-
-    service_to_add_method = SI_SERVMAN_find_service(service->service_id);
-    if (NULLPTR == service_to_add_method)
-    {
-        return FALSE;
-    }
-
-    if (NULLPTR != service_to_add_method->method)
-    {
-        return FALSE;
-    }
-
-    for (i = 0u; i < g_method_count; i++)
-    {
-        if (g_methods[i].method_id == method->method_id)
+        if (FALSE == local_service_registry[i].valid)
         {
-            return FALSE;
+            local_service_registry[i] = *service;
+            local_service_count += 1u;
+            return TRUE;
         }
     }
 
-    g_methods[g_method_count] = *method;
-    service_to_add_method->method = &(g_methods[g_method_count]);
-    g_method_count += 1u;
-
-    return TRUE;
+    return FALSE;    
 }
 
-struct SI_local_Service* SI_SERVMAN_find_service(uint16 service_id)
+boolean SI_SERVMAN_add_method(struct SI_Service* service, const struct SI_MethodEntry* method)
 {
     uint16 i = 0u;
+    struct SI_Service* found_service = NULLPTR;
+    boolean valid_method_element = FALSE;
+    boolean method_id_match = FALSE;
 
-    for (i = 0u; i < g_service_count; i++)
+    if ((NULLPTR == service) || (NULLPTR == method))
     {
-        if (g_services[i].service_id == service_id)
+        return FALSE;
+    }
+
+    found_service = SI_SERVMAN_find_service(service->service_id);
+    if (NULLPTR == found_service)
+    {
+        // given service does not exists, can not add method to it
+        return FALSE;
+    }
+
+    if (SI_CFG_MAX_METHODS <= found_service->method_counter)
+    {
+        // service can not handle more methods
+        return FALSE;
+    }
+
+    for (i = 0u; i < SI_CFG_MAX_METHODS; i++)
+    {
+        valid_method_element = (FALSE != found_service->method[i].valid);
+        method_id_match = (found_service->method[i].method_id == method->method_id);
+
+        if (valid_method_element && method_id_match)
         {
-            return &g_services[i];
+            // service already has a method equivalent with given one
+            return TRUE;
+        }
+    }
+
+    for (i = 0u; i < SI_CFG_MAX_METHODS; i++)
+    {
+        if (FALSE == found_service->method[i].valid)
+        {
+            found_service->method[i] = *method;
+            found_service->method_counter += 1u;
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+struct SI_Service* SI_SERVMAN_find_service(uint16 service_id)
+{
+    uint16 i = 0u;
+    boolean valid_service_element = FALSE;
+    boolean service_id_match = FALSE;
+
+    for (i = 0u; i < SI_CFG_MAX_SERVICES; i++)
+    {
+        valid_service_element = (FALSE != local_service_registry[i].valid);
+        service_id_match = (local_service_registry[i].service_id == service_id);
+
+        if (valid_service_element && service_id_match)
+        {
+            return &(local_service_registry[i]);
         }
     }
     return NULLPTR;
 }
 
+struct SI_MethodEntry* SI_SERVMAN_find_method(uint16 service_id, uint16 method_id)
+{
+    uint16 i = 0u;
+    struct SI_Service* found_service = NULLPTR;
+
+    found_service = SI_SERVMAN_find_service(service_id);
+    if (NULLPTR == found_service)
+    {
+        // given service does not exists
+        return NULLPTR;
+    }
+
+    for (i = 0u; i < SI_CFG_MAX_METHODS; i++)
+    {
+        if (found_service->method[i].method_id == method_id)
+        {
+            return &(found_service->method[i]);
+        }
+    }
+
+    return NULLPTR;
+}
+
+boolean SI_SERVMAN_rmv_service(const struct SI_Service* service)
+{
+    uint16 i = 0u;
+    boolean valid_service_element = FALSE;
+    boolean service_id_match = FALSE;
+
+    if ((NULLPTR == service) || (0u == local_service_count))
+    {
+        return FALSE;
+    }
+
+    for (i = 0u; i < SI_CFG_MAX_SERVICES; i++)
+    {
+        valid_service_element = (FALSE != local_service_registry[i].valid);
+        service_id_match = (local_service_registry[i].service_id == service->service_id);
+
+        if (valid_service_element && service_id_match)
+        {
+            local_service_registry[i].valid = FALSE;
+            local_service_registry[i].service_id = 0u;
+            local_service_registry[i].interface_version = 0u;
+            local_service_registry[i].method_counter = 0u;
+            local_service_registry[i].user_ctx = NULLPTR;
+            SI_SERVMAN_erase_methodlist(local_service_registry[i].method);
+
+            local_service_count -= 1u;
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+boolean SI_SERVMAN_rmv_method(struct SI_Service* service, const struct SI_MethodEntry* method)
+{
+    uint16 i = 0u;
+    struct SI_Service* found_service = NULLPTR;
+    boolean valid_method_element = FALSE;
+    boolean method_id_match = FALSE;
+
+    if ((NULLPTR == service) || (NULLPTR == method))
+    {
+        return FALSE;
+    }
+
+    found_service = SI_SERVMAN_find_service(service->service_id);
+    if (NULLPTR == found_service)
+    {
+        // given service does not exists, can not remove method from it
+        return FALSE;
+    }
+
+    if (0u == found_service->method_counter)
+    {
+        // no method to remove
+        return FALSE;
+    }
+
+    for (i = 0u; i < SI_CFG_MAX_METHODS; i++)
+    {
+        valid_method_element = (FALSE != found_service->method[i].valid);
+        method_id_match = (found_service->method[i].method_id == method->method_id);
+
+        if (valid_method_element && method_id_match)
+        {
+            found_service->method[i].valid = FALSE;
+            found_service->method[i].handler_func = NULLPTR;
+            found_service->method[i].method_id = 0u;
+
+            found_service->method_counter -= 1u;
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
 /* **************************************************** */
 /*             Local function definitions               */
 /* **************************************************** */
+
+void SI_SERVMAN_erase_methodlist(struct SI_MethodEntry* method)
+{
+    uint16 i = 0u;
+
+    for (i = 0u; i < SI_CFG_MAX_METHODS; i++)
+    {
+        method[i].valid = FALSE;
+        method[i].handler_func = NULLPTR;
+        method[i].method_id = 0u;
+    }
+}
 
 /* END OF SI_SERVMAN.C FILE */

@@ -7,6 +7,9 @@
  * @author  Erdei Sándor (sandorerdei21@gmail.com)
  * @date
  * @brief   "Provides aliases for common variable types"
+ * 
+ * [PRS_SOMEIP_00065]
+ * 
  */
 
 /* **************************************************** */
