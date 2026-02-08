@@ -15,8 +15,6 @@
 /*                      Includes                        */
 /* **************************************************** */
 
-#include <assert.h>
-
 #include "SI_types.h"
 #include "SI_const.h"
 

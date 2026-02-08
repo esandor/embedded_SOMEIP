@@ -14,7 +14,7 @@
 #include "lwip/pbuf.h"
 #include "lwip/ip_addr.h"
 #include "lwip/udp.h"
-#include "SomeIP_udp.h"
+#include "SomeIP_udp.h"     // for SomeIP_udp_transmit
 #include "SI_types.h"
 #include "SI_dispatcher.h"
 #include "SI_parser.h"

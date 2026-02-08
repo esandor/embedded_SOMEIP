@@ -14,11 +14,10 @@
 /*                      Includes                        */
 /* **************************************************** */
 
+#include <assert.h>
 #include "SI_types.h"
 #include "SI_config.h"
 #include "SI_header.h"
-
-#include "SI_wire.h"
 
 /* **************************************************** */
 /*                       Defines                        */

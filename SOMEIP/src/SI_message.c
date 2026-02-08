@@ -11,14 +11,15 @@
 
 #include "SI_message.h"
 
-#include <string.h>         // for memcpy
-#include <assert.h>
-
 #include "SI_types.h"
+#include "SI_const.h"
 #include "SI_config.h"
 #include "SI_header.h"
 #include "SI_wire.h"
 #include "ERH.h"
+
+#include <string.h>         // for memcpy
+#include <assert.h>
 
 static_assert(SI_CFG_MSG_TXPOOL_BLOCK_SIZE >= SI_CONST_HEADER_LENGTH, "FATAL ERROR: Configured SOME/IP message pool block size is below the minimum length!");
 #if (FALSE == SI_CFG_TRANSMISSION_PROTOCOL_EXISTS)

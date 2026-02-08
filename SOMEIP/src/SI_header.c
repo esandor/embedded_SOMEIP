@@ -11,6 +11,10 @@
 
 #include "SI_header.h"
 
+#include "SI_types.h"
+#include "SI_const.h"
+#include "SI_config.h"
+
 /* **************************************************** */
 /*                       Defines                        */
 /* **************************************************** */

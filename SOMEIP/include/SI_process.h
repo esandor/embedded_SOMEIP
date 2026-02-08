@@ -20,13 +20,6 @@
 #include "lwip/udp.h"
 #include "SI_types.h"
 
-#include "SomeIP_udp.h"
-#include "SI_dispatcher.h"
-#include "SI_parser.h"
-#include "SI_header.h"
-#include "SI_servman.h"
-#include "SI_message.h"
-
 /* **************************************************** */
 /*                       Defines                        */
 /* **************************************************** */
