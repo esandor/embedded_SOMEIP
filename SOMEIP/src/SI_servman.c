@@ -50,6 +50,8 @@ boolean SI_SERVMAN_add_service(const struct SI_Service* service)
     uint16 i = 0u;
     boolean valid_service_element = FALSE;
     boolean service_id_match = FALSE;
+    boolean instance_id_match = FALSE;
+    boolean interface_version_match = FALSE;
 
     if ((NULLPTR == service) || (SI_CFG_MAX_SERVICES <= local_service_count))
     {
@@ -60,8 +62,10 @@ boolean SI_SERVMAN_add_service(const struct SI_Service* service)
     {
         valid_service_element = (FALSE != local_service_registry[i].valid);
         service_id_match = (local_service_registry[i].service_id == service->service_id);
+        instance_id_match = (local_service_registry[i].instance.instance_id == service->instance.instance_id);
+        interface_version_match = (local_service_registry[i].interface_version == service->interface_version);
 
-        if (valid_service_element && service_id_match)
+        if (valid_service_element && service_id_match && instance_id_match && interface_version_match)
         {
             // service already exists
             return TRUE;
@@ -93,7 +97,7 @@ boolean SI_SERVMAN_add_method(struct SI_Service* service, const struct SI_Method
         return FALSE;
     }
 
-    found_service = SI_SERVMAN_find_service(service->service_id);
+    found_service = SI_SERVMAN_find_service(service->service_id, service->instance.port_be, service->interface_version);
     if (NULLPTR == found_service)
     {
         // given service does not exists, can not add method to it
@@ -131,18 +135,22 @@ boolean SI_SERVMAN_add_method(struct SI_Service* service, const struct SI_Method
     return FALSE;
 }
 
-struct SI_Service* SI_SERVMAN_find_service(uint16 service_id)
+struct SI_Service* SI_SERVMAN_find_service(uint16 service_id, uint16 src_port, uint16 interface_version)
 {
     uint16 i = 0u;
     boolean valid_service_element = FALSE;
     boolean service_id_match = FALSE;
+    boolean instance_id_match = FALSE;
+    boolean interface_version_match = FALSE;
 
     for (i = 0u; i < SI_CFG_MAX_SERVICES; i++)
     {
         valid_service_element = (FALSE != local_service_registry[i].valid);
         service_id_match = (local_service_registry[i].service_id == service_id);
+        instance_id_match = (local_service_registry[i].instance.port_be == src_port);
+        interface_version_match = (local_service_registry[i].interface_version == interface_version);
 
-        if (valid_service_element && service_id_match)
+        if (valid_service_element && service_id_match && instance_id_match && interface_version_match)
         {
             return &(local_service_registry[i]);
         }
@@ -150,23 +158,20 @@ struct SI_Service* SI_SERVMAN_find_service(uint16 service_id)
     return NULLPTR;
 }
 
-struct SI_MethodEntry* SI_SERVMAN_find_method(uint16 service_id, uint16 method_id)
+struct SI_MethodEntry* SI_SERVMAN_find_method(struct SI_Service* service, uint16 method_id)
 {
     uint16 i = 0u;
-    struct SI_Service* found_service = NULLPTR;
 
-    found_service = SI_SERVMAN_find_service(service_id);
-    if (NULLPTR == found_service)
+    if (NULLPTR == service)
     {
-        // given service does not exists
         return NULLPTR;
     }
 
     for (i = 0u; i < SI_CFG_MAX_METHODS; i++)
     {
-        if (found_service->method[i].method_id == method_id)
+        if (service->method[i].method_id == method_id)
         {
-            return &(found_service->method[i]);
+            return &(service->method[i]);
         }
     }
 
@@ -178,6 +183,8 @@ boolean SI_SERVMAN_rmv_service(const struct SI_Service* service)
     uint16 i = 0u;
     boolean valid_service_element = FALSE;
     boolean service_id_match = FALSE;
+    boolean instance_id_match = FALSE;
+    boolean interface_version_match = FALSE;
 
     if ((NULLPTR == service) || (0u == local_service_count))
     {
@@ -188,14 +195,17 @@ boolean SI_SERVMAN_rmv_service(const struct SI_Service* service)
     {
         valid_service_element = (FALSE != local_service_registry[i].valid);
         service_id_match = (local_service_registry[i].service_id == service->service_id);
+        instance_id_match = (local_service_registry[i].instance.instance_id == service->instance.instance_id);
+        interface_version_match = (local_service_registry[i].interface_version == service->interface_version);
 
-        if (valid_service_element && service_id_match)
+        if (valid_service_element && service_id_match && instance_id_match && interface_version_match)
         {
             local_service_registry[i].valid = FALSE;
             local_service_registry[i].service_id = 0u;
             local_service_registry[i].interface_version = 0u;
             local_service_registry[i].method_counter = 0u;
-            local_service_registry[i].user_ctx = NULLPTR;
+            local_service_registry[i].instance.instance_id = 0u;
+            local_service_registry[i].instance.port_be = 0u;
             SI_SERVMAN_erase_methodlist(local_service_registry[i].method);
 
             local_service_count -= 1u;
@@ -217,7 +227,7 @@ boolean SI_SERVMAN_rmv_method(struct SI_Service* service, const struct SI_Method
         return FALSE;
     }
 
-    found_service = SI_SERVMAN_find_service(service->service_id);
+    found_service = SI_SERVMAN_find_service(service->service_id, service->instance.port_be, service->interface_version);
     if (NULLPTR == found_service)
     {
         // given service does not exists, can not remove method from it

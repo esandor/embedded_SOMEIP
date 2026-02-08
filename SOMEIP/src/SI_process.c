@@ -154,7 +154,7 @@ boolean SI_PROCESS_unicast(struct udp_pcb *rx_udp_pcb, struct pbuf *rx_pbuf, con
         }
 
         // ---- 5) Get requested service
-        requested_service = SI_SERVMAN_find_service(request.header.message_id.serviceID);
+        requested_service = SI_SERVMAN_find_service(request.header.message_id.serviceID, rx_udp_pcb->local_port, request.header.interface_version);
         if (NULLPTR == requested_service)
         {
             error_condition = TRUE;
@@ -173,7 +173,7 @@ boolean SI_PROCESS_unicast(struct udp_pcb *rx_udp_pcb, struct pbuf *rx_pbuf, con
         }
 
         // ---- 6) Get requested method
-        requested_method = SI_SERVMAN_find_method(requested_service->service_id, request.header.message_id.methodID_or_eventID);
+        requested_method = SI_SERVMAN_find_method(requested_service, request.header.message_id.methodID_or_eventID);
         if ((NULLPTR == requested_method) && (FALSE == error_condition))
         {
             error_condition = TRUE;
@@ -185,7 +185,7 @@ boolean SI_PROCESS_unicast(struct udp_pcb *rx_udp_pcb, struct pbuf *rx_pbuf, con
         // ---- 7) Call service handler
         if (FALSE == error_condition)
         {
-            handler_return_code = requested_method->handler_func(&request, &response, requested_service->user_ctx);
+            handler_return_code = requested_method->handler_func(&request, &response);
         }
 
         // ---- 8) Success -> send response message

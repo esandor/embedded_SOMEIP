@@ -85,9 +85,10 @@
 #define SI_CFG_ENABLE_TCP                       (FALSE)
 
 /**
- * Application port for SOME/IP operation over UDP.
+ * Application ports for SOME/IP operation over UDP.
  */
-#define SI_CFG_UNICAST_UDP_PORT                 (5005u)
+#define SI_CFG_UNICAST_UDP_PORT1                (5005u)
+#define SI_CFG_UNICAST_UDP_PORT2                (5006u)
 
 #if (TRUE == SI_CFG_ENABLE_TCP)
 
